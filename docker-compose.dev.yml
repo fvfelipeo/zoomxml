@@ -14,7 +14,6 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "5432:5432"
     networks:
@@ -47,43 +46,28 @@ services:
       timeout: 20s
       retries: 3
 
-  # MinIO Client for automatic bucket setup
-  minio-setup:
-    image: minio/mc:latest
-    container_name: zoomxml-minio-setup
-    depends_on:
-      minio:
-        condition: service_healthy
-    networks:
-      - zoomxml-dev
-    entrypoint: >
-      /bin/sh -c "
-      echo '🔧 Setting up MinIO bucket...';
-      sleep 5;
-      /usr/bin/mc alias set myminio http://minio:9000 admin password123;
-      /usr/bin/mc mb myminio/nfse-storage --ignore-existing;
-      /usr/bin/mc policy set public myminio/nfse-storage;
-      echo '✅ MinIO bucket nfse-storage created successfully';
-      echo '🌐 MinIO Console: http://localhost:9001';
-      echo '📦 S3 API: http://localhost:9000';
-      echo '🔑 Access Key: admin';
-      echo '🔐 Secret Key: password123';
-      exit 0;
-      "
-
-  # Adminer for database management
-  adminer:
-    image: adminer:latest
-    container_name: zoomxml-adminer-dev
+  # DBGate for database management
+  dbgate:
+    image: dbgate/dbgate:latest
+    container_name: zoomxml-dbgate-dev
     restart: unless-stopped
-    ports:
-      - "8080:8080"
-    networks:
-      - zoomxml-dev
     depends_on:
       - postgres
     environment:
-      ADMINER_DEFAULT_SERVER: postgres
+      CONNECTIONS: con1
+      LABEL_con1: ZoomXML PostgreSQL
+      SERVER_con1: postgres
+      USER_con1: postgres
+      PASSWORD_con1: password
+      PORT_con1: 5432
+      ENGINE_con1: postgres@dbgate-plugin-postgres
+      DATABASE_con1: nfse_metadata
+    ports:
+      - "3000:3000"
+    networks:
+      - zoomxml-dev
+    volumes:
+      - dbgate_data:/root/.dbgate
 
   # Redis for caching (optional)
   redis:
@@ -103,12 +87,16 @@ services:
       timeout: 3s
       retries: 5
 
+
+
 volumes:
   postgres_dev_data:
     driver: local
   minio_dev_data:
     driver: local
   redis_dev_data:
+    driver: local
+  dbgate_data:
     driver: local
 
 networks:

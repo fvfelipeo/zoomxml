@@ -1,106 +1,185 @@
 package middleware
 
 import (
+	"context"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/zoomxml/config"
+	"github.com/zoomxml/internal/database"
 	"github.com/zoomxml/internal/models"
-	"github.com/zoomxml/internal/services"
 )
 
-// AuthMiddleware creates authentication middleware
-func AuthMiddleware(authService *services.AuthService) fiber.Handler {
+// UserContextKey é a chave para armazenar o usuário no contexto
+type UserContextKey string
+
+const UserKey UserContextKey = "user"
+
+// AuthMiddleware middleware para autenticação com token simples
+func AuthMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		// Get Authorization header
-		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return c.Status(401).JSON(models.APIResponse{
-				Success: false,
-				Error:   "Authorization header required",
+		// Extrair token do header "token" ou "Authorization"
+		tokenString := c.Get("token")
+		if tokenString == "" {
+			authHeader := c.Get("Authorization")
+			if authHeader == "" {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error": "Token header required",
+				})
+			}
+
+			// Verificar formato "Bearer <token>" ou apenas "<token>"
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+			} else {
+				tokenString = authHeader
+			}
+		}
+
+		if tokenString == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Token required",
 			})
 		}
 
-		// Check Bearer token format
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			return c.Status(401).JSON(models.APIResponse{
-				Success: false,
-				Error:   "Invalid authorization format",
-			})
-		}
+		// Buscar usuário pelo token no banco de dados
+		user := &models.User{}
+		err := database.DB.NewSelect().
+			Model(user).
+			Where("token = ? AND active = true", tokenString).
+			Scan(c.Context())
 
-		// Extract token
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		if token == "" {
-			return c.Status(401).JSON(models.APIResponse{
-				Success: false,
-				Error:   "Token required",
-			})
-		}
-
-		// Validate token
-		empresa, err := authService.ValidateToken(token)
 		if err != nil {
-			return c.Status(401).JSON(models.APIResponse{
-				Success: false,
-				Error:   "Invalid or expired token",
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid token or user not found",
 			})
 		}
 
-		// Store empresa in context
-		c.Locals("empresa", empresa)
-		c.Locals("empresa_id", empresa.ID)
-		c.Locals("empresa_uuid", empresa.UUID)
+		// Adicionar usuário ao contexto
+		c.Locals(string(UserKey), user)
 
 		return c.Next()
 	}
 }
 
-// GetEmpresaFromContext gets the empresa from fiber context
-func GetEmpresaFromContext(c *fiber.Ctx) *models.Empresa {
-	empresa, ok := c.Locals("empresa").(*models.Empresa)
+// AdminTokenMiddleware middleware para validação do token de admin
+func AdminTokenMiddleware() fiber.Handler {
+	cfg := config.Get()
+
+	return func(c *fiber.Ctx) error {
+		// Extrair token do header "token" ou "Authorization"
+		tokenString := c.Get("token")
+		if tokenString == "" {
+			authHeader := c.Get("Authorization")
+			if authHeader == "" {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error": "Token header required",
+				})
+			}
+
+			// Verificar formato "Bearer <token>" ou apenas "<token>"
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+			} else {
+				tokenString = authHeader
+			}
+		}
+
+		if tokenString == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Token required",
+			})
+		}
+
+		// Verificar se é o token de admin
+		if tokenString != cfg.Auth.AdminToken {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid admin token",
+			})
+		}
+
+		return c.Next()
+	}
+}
+
+// AdminOnlyMiddleware middleware que permite apenas usuários admin
+func AdminOnlyMiddleware() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		user := GetUserFromContext(c)
+		if user == nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Authentication required",
+			})
+		}
+
+		if !user.IsAdmin() {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Admin access required",
+			})
+		}
+
+		return c.Next()
+	}
+}
+
+// OptionalAuthMiddleware middleware de autenticação opcional
+func OptionalAuthMiddleware() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Extrair token do header "token" ou "Authorization"
+		tokenString := c.Get("token")
+		if tokenString == "" {
+			authHeader := c.Get("Authorization")
+			if authHeader == "" {
+				// Sem token, continuar sem usuário
+				return c.Next()
+			}
+
+			// Verificar formato "Bearer <token>" ou apenas "<token>"
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+			} else {
+				tokenString = authHeader
+			}
+		}
+
+		if tokenString == "" {
+			// Token vazio, continuar sem usuário
+			return c.Next()
+		}
+
+		// Buscar usuário pelo token no banco de dados
+		user := &models.User{}
+		err := database.DB.NewSelect().
+			Model(user).
+			Where("token = ? AND active = true", tokenString).
+			Scan(c.Context())
+
+		if err != nil {
+			// Token inválido ou usuário não encontrado, continuar sem usuário
+			return c.Next()
+		}
+
+		// Adicionar usuário ao contexto
+		c.Locals(string(UserKey), user)
+
+		return c.Next()
+	}
+}
+
+// GetUserFromContext extrai o usuário do contexto
+func GetUserFromContext(c *fiber.Ctx) *models.User {
+	user, ok := c.Locals(string(UserKey)).(*models.User)
 	if !ok {
 		return nil
 	}
-	return empresa
+	return user
 }
 
-// GetEmpresaIDFromContext gets the empresa ID from fiber context
-func GetEmpresaIDFromContext(c *fiber.Ctx) int {
-	empresaID, ok := c.Locals("empresa_id").(int)
+// GetUserFromGoContext extrai o usuário do contexto Go
+func GetUserFromGoContext(ctx context.Context) *models.User {
+	user, ok := ctx.Value(UserKey).(*models.User)
 	if !ok {
-		return 0
+		return nil
 	}
-	return empresaID
-}
-
-// GetEmpresaUUIDFromContext gets the empresa UUID from fiber context
-func GetEmpresaUUIDFromContext(c *fiber.Ctx) string {
-	empresaUUID, ok := c.Locals("empresa_uuid").(string)
-	if !ok {
-		return ""
-	}
-	return empresaUUID
-}
-
-// LoggingMiddleware logs HTTP requests
-func LoggingMiddleware() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		// Simple logging - in production use structured logging
-		return c.Next()
-	}
-}
-
-// CORSMiddleware handles CORS
-func CORSMiddleware() fiber.Handler {
-	return func(c *fiber.Ctx) error {
-		c.Set("Access-Control-Allow-Origin", "*")
-		c.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if c.Method() == "OPTIONS" {
-			return c.SendStatus(200)
-		}
-
-		return c.Next()
-	}
+	return user
 }

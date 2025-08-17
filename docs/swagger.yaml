@@ -1,0 +1,447 @@
+basePath: /api
+definitions:
+  handlers.CreateCompanyRequest:
+    properties:
+      address:
+        description: Endereço completo
+        type: string
+      auto_fetch:
+        type: boolean
+      city:
+        type: string
+      cnpj:
+        maxLength: 18
+        minLength: 14
+        type: string
+      company_size:
+        description: Dados empresariais
+        type: string
+      complement:
+        type: string
+      district:
+        type: string
+      email:
+        type: string
+      legal_nature:
+        description: Natureza jurídica
+        type: string
+      main_activity:
+        description: Atividade principal
+        type: string
+      name:
+        description: Dados básicos obrigatórios
+        maxLength: 255
+        minLength: 2
+        type: string
+      number:
+        type: string
+      opening_date:
+        description: Data de abertura
+        type: string
+      phone:
+        description: Contato
+        type: string
+      registration_status:
+        description: Situação cadastral
+        type: string
+      restricted:
+        description: Configurações do sistema
+        type: boolean
+      secondary_activity:
+        description: Atividades secundárias
+        type: string
+      state:
+        type: string
+      trade_name:
+        description: Nome fantasia
+        type: string
+      zip_code:
+        type: string
+    required:
+    - cnpj
+    - name
+    type: object
+  handlers.CreateUserRequest:
+    properties:
+      email:
+        type: string
+      name:
+        maxLength: 255
+        minLength: 2
+        type: string
+      password:
+        description: Senha obrigatória para frontend
+        minLength: 8
+        type: string
+      role:
+        enum:
+        - admin
+        - user
+        type: string
+      token:
+        description: Token opcional - se não fornecido, será gerado automaticamente
+        type: string
+    required:
+    - email
+    - name
+    - password
+    - role
+    type: object
+  handlers.SwaggerCompaniesResponse:
+    properties:
+      companies:
+        items:
+          $ref: '#/definitions/handlers.SwaggerCompany'
+        type: array
+      pagination:
+        $ref: '#/definitions/handlers.SwaggerPagination'
+    type: object
+  handlers.SwaggerCompany:
+    properties:
+      active:
+        example: true
+        type: boolean
+      address:
+        description: Endereço
+        example: R PERNAMBUCO
+        type: string
+      auto_fetch:
+        example: false
+        type: boolean
+      city:
+        example: IMPERATRIZ
+        type: string
+      cnpj:
+        example: 34.194.865/0001-58
+        type: string
+      company_size:
+        description: Dados empresariais
+        example: ME
+        type: string
+      complement:
+        example: LETRA A
+        type: string
+      created_at:
+        example: "2025-08-17T19:01:44Z"
+        type: string
+      district:
+        example: CENTRO
+        type: string
+      email:
+        example: contato@multicar.com
+        type: string
+      id:
+        example: 1
+        type: integer
+      legal_nature:
+        example: 213-5 - Empresário (Individual)
+        type: string
+      main_activity:
+        example: 45.12-9-02 - Comércio sob consignação de veículos automotores
+        type: string
+      name:
+        example: S. E. L. DE SOUZA SUARES VEICULOS
+        type: string
+      number:
+        example: "757"
+        type: string
+      opening_date:
+        example: 12/07/2019
+        type: string
+      phone:
+        description: Contato
+        example: (99) 9177-7746
+        type: string
+      registration_status:
+        example: ATIVA
+        type: string
+      restricted:
+        description: Configurações
+        example: false
+        type: boolean
+      secondary_activity:
+        example: 45.11-1-02 - Comércio a varejo de automóveis, camionetas e utilitários
+          usados
+        type: string
+      state:
+        example: MA
+        type: string
+      trade_name:
+        example: MULTICAR VEICULOS
+        type: string
+      updated_at:
+        example: "2025-08-17T19:01:44Z"
+        type: string
+      zip_code:
+        example: 65.903-320
+        type: string
+    type: object
+  handlers.SwaggerError:
+    properties:
+      error:
+        example: Mensagem de erro
+        type: string
+    type: object
+  handlers.SwaggerPagination:
+    properties:
+      limit:
+        example: 20
+        type: integer
+      page:
+        example: 1
+        type: integer
+      total:
+        example: 100
+        type: integer
+    type: object
+  handlers.SwaggerUser:
+    properties:
+      active:
+        example: true
+        type: boolean
+      created_at:
+        example: "2025-08-17T19:01:44Z"
+        type: string
+      email:
+        example: joao@exemplo.com
+        type: string
+      id:
+        example: 1
+        type: integer
+      name:
+        example: João Silva
+        type: string
+      role:
+        example: user
+        type: string
+      updated_at:
+        example: "2025-08-17T19:01:44Z"
+        type: string
+    type: object
+  handlers.SwaggerUserWithToken:
+    properties:
+      active:
+        example: true
+        type: boolean
+      created_at:
+        example: "2025-08-17T19:01:44Z"
+        type: string
+      email:
+        example: joao@exemplo.com
+        type: string
+      id:
+        example: 1
+        type: integer
+      name:
+        example: João Silva
+        type: string
+      role:
+        example: user
+        type: string
+      token:
+        example: U6HGHy4SDK
+        type: string
+      updated_at:
+        example: "2025-08-17T19:01:44Z"
+        type: string
+    type: object
+  handlers.SwaggerUsersResponse:
+    properties:
+      pagination:
+        $ref: '#/definitions/handlers.SwaggerPagination'
+      users:
+        items:
+          $ref: '#/definitions/handlers.SwaggerUser'
+        type: array
+    type: object
+  handlers.SwaggerValidationError:
+    properties:
+      details:
+        additionalProperties:
+          type: string
+        example:
+          '{"email"': '"email is required"}'
+        type: object
+      error:
+        example: Validation failed
+        type: string
+    type: object
+host: localhost:8000
+info:
+  contact:
+    email: support@zoomxml.com
+    name: API Support
+    url: http://www.zoomxml.com/support
+  description: Sistema de Gerenciamento Multi-Empresarial de Documentos Fiscais
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: ZoomXML API
+  version: "1.0"
+paths:
+  /companies:
+    get:
+      description: Lista empresas conforme regras de visibilidade (públicas para todos,
+        restritas apenas para membros/admin)
+      parameters:
+      - description: Filtrar por status (true/false) - apenas admin
+        in: query
+        name: active
+        type: string
+      - description: Filtrar por tipo (true/false) - apenas admin
+        in: query
+        name: restricted
+        type: string
+      - description: 'Página (padrão: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Itens por página (padrão: 20)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista de empresas com paginação
+          schema:
+            $ref: '#/definitions/handlers.SwaggerCompaniesResponse'
+        "500":
+          description: Erro interno
+          schema:
+            $ref: '#/definitions/handlers.SwaggerError'
+      summary: Listar empresas
+      tags:
+      - companies
+    post:
+      consumes:
+      - application/json
+      description: Cria uma nova empresa no sistema (requer autenticação)
+      parameters:
+      - description: Dados da empresa
+        in: body
+        name: company
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateCompanyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SwaggerCompany'
+        "400":
+          description: Erro de validação
+          schema:
+            $ref: '#/definitions/handlers.SwaggerValidationError'
+        "401":
+          description: Autenticação necessária
+          schema:
+            $ref: '#/definitions/handlers.SwaggerError'
+        "409":
+          description: CNPJ já existe
+          schema:
+            $ref: '#/definitions/handlers.SwaggerError'
+        "500":
+          description: Erro interno
+          schema:
+            $ref: '#/definitions/handlers.SwaggerError'
+      security:
+      - UserToken: []
+      summary: Criar empresa
+      tags:
+      - companies
+  /users:
+    get:
+      description: Lista todos os usuários do sistema com paginação e filtros
+      parameters:
+      - description: Filtrar por papel (admin/user)
+        in: query
+        name: role
+        type: string
+      - description: Filtrar por status (true/false)
+        in: query
+        name: active
+        type: string
+      - description: 'Página (padrão: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Itens por página (padrão: 20)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Lista de usuários com paginação
+          schema:
+            $ref: '#/definitions/handlers.SwaggerUsersResponse'
+        "401":
+          description: Token de admin necessário
+          schema:
+            $ref: '#/definitions/handlers.SwaggerError'
+        "500":
+          description: Erro interno
+          schema:
+            $ref: '#/definitions/handlers.SwaggerError'
+      security:
+      - AdminToken: []
+      summary: Listar usuários
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: Cria um novo usuário no sistema (apenas admin com token especial)
+      parameters:
+      - description: Dados do usuário
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SwaggerUserWithToken'
+        "400":
+          description: Erro de validação
+          schema:
+            $ref: '#/definitions/handlers.SwaggerValidationError'
+        "401":
+          description: Token de admin necessário
+          schema:
+            $ref: '#/definitions/handlers.SwaggerError'
+        "409":
+          description: Email já existe
+          schema:
+            $ref: '#/definitions/handlers.SwaggerError'
+        "500":
+          description: Erro interno
+          schema:
+            $ref: '#/definitions/handlers.SwaggerError'
+      security:
+      - AdminToken: []
+      summary: Criar usuário
+      tags:
+      - users
+securityDefinitions:
+  AdminToken:
+    description: 'Token de administrador para operações de usuários (ex: admin-secret-token)'
+    in: header
+    name: token
+    type: apiKey
+  UserToken:
+    description: 'Token de usuário para autenticação (ex: U6HGHy4SDK)'
+    in: header
+    name: token
+    type: apiKey
+swagger: "2.0"

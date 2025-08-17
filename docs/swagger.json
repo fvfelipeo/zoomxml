@@ -1,0 +1,641 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Sistema de Gerenciamento Multi-Empresarial de Documentos Fiscais",
+        "title": "ZoomXML API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "url": "http://www.zoomxml.com/support",
+            "email": "support@zoomxml.com"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8000",
+    "basePath": "/api",
+    "paths": {
+        "/companies": {
+            "get": {
+                "description": "Lista empresas conforme regras de visibilidade (públicas para todos, restritas apenas para membros/admin)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Listar empresas",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filtrar por status (true/false) - apenas admin",
+                        "name": "active",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filtrar por tipo (true/false) - apenas admin",
+                        "name": "restricted",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Página (padrão: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Itens por página (padrão: 20)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de empresas com paginação",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerCompaniesResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Erro interno",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "UserToken": []
+                    }
+                ],
+                "description": "Cria uma nova empresa no sistema (requer autenticação)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "companies"
+                ],
+                "summary": "Criar empresa",
+                "parameters": [
+                    {
+                        "description": "Dados da empresa",
+                        "name": "company",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CreateCompanyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerCompany"
+                        }
+                    },
+                    "400": {
+                        "description": "Erro de validação",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerValidationError"
+                        }
+                    },
+                    "401": {
+                        "description": "Autenticação necessária",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerError"
+                        }
+                    },
+                    "409": {
+                        "description": "CNPJ já existe",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerError"
+                        }
+                    },
+                    "500": {
+                        "description": "Erro interno",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerError"
+                        }
+                    }
+                }
+            }
+        },
+        "/users": {
+            "get": {
+                "security": [
+                    {
+                        "AdminToken": []
+                    }
+                ],
+                "description": "Lista todos os usuários do sistema com paginação e filtros",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Listar usuários",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filtrar por papel (admin/user)",
+                        "name": "role",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filtrar por status (true/false)",
+                        "name": "active",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Página (padrão: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Itens por página (padrão: 20)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de usuários com paginação",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerUsersResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Token de admin necessário",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerError"
+                        }
+                    },
+                    "500": {
+                        "description": "Erro interno",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerError"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "AdminToken": []
+                    }
+                ],
+                "description": "Cria um novo usuário no sistema (apenas admin com token especial)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Criar usuário",
+                "parameters": [
+                    {
+                        "description": "Dados do usuário",
+                        "name": "user",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CreateUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerUserWithToken"
+                        }
+                    },
+                    "400": {
+                        "description": "Erro de validação",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerValidationError"
+                        }
+                    },
+                    "401": {
+                        "description": "Token de admin necessário",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerError"
+                        }
+                    },
+                    "409": {
+                        "description": "Email já existe",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerError"
+                        }
+                    },
+                    "500": {
+                        "description": "Erro interno",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.SwaggerError"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "handlers.CreateCompanyRequest": {
+            "type": "object",
+            "required": [
+                "cnpj",
+                "name"
+            ],
+            "properties": {
+                "address": {
+                    "description": "Endereço completo",
+                    "type": "string"
+                },
+                "auto_fetch": {
+                    "type": "boolean"
+                },
+                "city": {
+                    "type": "string"
+                },
+                "cnpj": {
+                    "type": "string",
+                    "maxLength": 18,
+                    "minLength": 14
+                },
+                "company_size": {
+                    "description": "Dados empresariais",
+                    "type": "string"
+                },
+                "complement": {
+                    "type": "string"
+                },
+                "district": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "legal_nature": {
+                    "description": "Natureza jurídica",
+                    "type": "string"
+                },
+                "main_activity": {
+                    "description": "Atividade principal",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Dados básicos obrigatórios",
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 2
+                },
+                "number": {
+                    "type": "string"
+                },
+                "opening_date": {
+                    "description": "Data de abertura",
+                    "type": "string"
+                },
+                "phone": {
+                    "description": "Contato",
+                    "type": "string"
+                },
+                "registration_status": {
+                    "description": "Situação cadastral",
+                    "type": "string"
+                },
+                "restricted": {
+                    "description": "Configurações do sistema",
+                    "type": "boolean"
+                },
+                "secondary_activity": {
+                    "description": "Atividades secundárias",
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                },
+                "trade_name": {
+                    "description": "Nome fantasia",
+                    "type": "string"
+                },
+                "zip_code": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.CreateUserRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "name",
+                "password",
+                "role"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 2
+                },
+                "password": {
+                    "description": "Senha obrigatória para frontend",
+                    "type": "string",
+                    "minLength": 8
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "admin",
+                        "user"
+                    ]
+                },
+                "token": {
+                    "description": "Token opcional - se não fornecido, será gerado automaticamente",
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.SwaggerCompaniesResponse": {
+            "type": "object",
+            "properties": {
+                "companies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.SwaggerCompany"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/handlers.SwaggerPagination"
+                }
+            }
+        },
+        "handlers.SwaggerCompany": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "address": {
+                    "description": "Endereço",
+                    "type": "string",
+                    "example": "R PERNAMBUCO"
+                },
+                "auto_fetch": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "city": {
+                    "type": "string",
+                    "example": "IMPERATRIZ"
+                },
+                "cnpj": {
+                    "type": "string",
+                    "example": "34.194.865/0001-58"
+                },
+                "company_size": {
+                    "description": "Dados empresariais",
+                    "type": "string",
+                    "example": "ME"
+                },
+                "complement": {
+                    "type": "string",
+                    "example": "LETRA A"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2025-08-17T19:01:44Z"
+                },
+                "district": {
+                    "type": "string",
+                    "example": "CENTRO"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "contato@multicar.com"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "legal_nature": {
+                    "type": "string",
+                    "example": "213-5 - Empresário (Individual)"
+                },
+                "main_activity": {
+                    "type": "string",
+                    "example": "45.12-9-02 - Comércio sob consignação de veículos automotores"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "S. E. L. DE SOUZA SUARES VEICULOS"
+                },
+                "number": {
+                    "type": "string",
+                    "example": "757"
+                },
+                "opening_date": {
+                    "type": "string",
+                    "example": "12/07/2019"
+                },
+                "phone": {
+                    "description": "Contato",
+                    "type": "string",
+                    "example": "(99) 9177-7746"
+                },
+                "registration_status": {
+                    "type": "string",
+                    "example": "ATIVA"
+                },
+                "restricted": {
+                    "description": "Configurações",
+                    "type": "boolean",
+                    "example": false
+                },
+                "secondary_activity": {
+                    "type": "string",
+                    "example": "45.11-1-02 - Comércio a varejo de automóveis, camionetas e utilitários usados"
+                },
+                "state": {
+                    "type": "string",
+                    "example": "MA"
+                },
+                "trade_name": {
+                    "type": "string",
+                    "example": "MULTICAR VEICULOS"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2025-08-17T19:01:44Z"
+                },
+                "zip_code": {
+                    "type": "string",
+                    "example": "65.903-320"
+                }
+            }
+        },
+        "handlers.SwaggerError": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Mensagem de erro"
+                }
+            }
+        },
+        "handlers.SwaggerPagination": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "handlers.SwaggerUser": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2025-08-17T19:01:44Z"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "joao@exemplo.com"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "name": {
+                    "type": "string",
+                    "example": "João Silva"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2025-08-17T19:01:44Z"
+                }
+            }
+        },
+        "handlers.SwaggerUserWithToken": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2025-08-17T19:01:44Z"
+                },
+                "email": {
+                    "type": "string",
+                    "example": "joao@exemplo.com"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "name": {
+                    "type": "string",
+                    "example": "João Silva"
+                },
+                "role": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "token": {
+                    "type": "string",
+                    "example": "U6HGHy4SDK"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2025-08-17T19:01:44Z"
+                }
+            }
+        },
+        "handlers.SwaggerUsersResponse": {
+            "type": "object",
+            "properties": {
+                "pagination": {
+                    "$ref": "#/definitions/handlers.SwaggerPagination"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.SwaggerUser"
+                    }
+                }
+            }
+        },
+        "handlers.SwaggerValidationError": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "example": {
+                        "{\"email\"": "\"email is required\"}"
+                    }
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Validation failed"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "AdminToken": {
+            "description": "Token de administrador para operações de usuários (ex: admin-secret-token)",
+            "type": "apiKey",
+            "name": "token",
+            "in": "header"
+        },
+        "UserToken": {
+            "description": "Token de usuário para autenticação (ex: U6HGHy4SDK)",
+            "type": "apiKey",
+            "name": "token",
+            "in": "header"
+        }
+    }
+}

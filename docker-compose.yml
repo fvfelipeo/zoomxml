@@ -81,6 +81,7 @@ services:
 
       # Authentication
       JWT_SECRET: production-secret-key-change-this-in-real-production-123456789
+      ADMIN_TOKEN: admin-secret-token-change-in-production
 
       # Server
       SERVER_HOST: 0.0.0.0
@@ -145,6 +146,8 @@ volumes:
   postgres_data:
     driver: local
   minio_data:
+    driver: local
+  app_logs:
     driver: local
 
 networks:

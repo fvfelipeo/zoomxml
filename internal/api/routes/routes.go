@@ -1,163 +1,102 @@
 package routes
 
 import (
-	"time"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/zoomxml/internal/api/handlers"
 	"github.com/zoomxml/internal/api/middleware"
-	"github.com/zoomxml/internal/models"
-	"github.com/zoomxml/internal/services"
 )
 
-// RouteConfig holds configuration for route setup
-type RouteConfig struct {
-	Handlers    *handlers.HandlerContainer
-	AuthService *services.AuthService
+// SetupRoutes configura todas as rotas da aplicação
+func SetupRoutes(app *fiber.App) {
+	// Criar handlers
+	userHandler := handlers.NewUserHandler()
+	companyHandler := handlers.NewCompanyHandler()
+	credentialHandler := handlers.NewCredentialHandler()
+
+	// Grupo API
+	api := app.Group("/api")
+
+	// Configurar rotas de usuários
+	setupUserRoutes(api, userHandler)
+
+	// Configurar rotas de empresas
+	setupCompanyRoutes(api, companyHandler)
+
+	// Configurar rotas de credenciais
+	setupCredentialRoutes(api, credentialHandler)
+
+	// Configurar rotas de autenticação
+	setupAuthRoutes(api)
 }
 
-// SetupRoutes configures all application routes
-func SetupRoutes(app *fiber.App, config RouteConfig) {
-	// Initialize route middleware
-	routeMiddleware := NewRouteMiddleware()
+// setupUserRoutes configura as rotas de gerenciamento de usuários
+func setupUserRoutes(api fiber.Router, handler *handlers.UserHandler) {
+	// Rotas de usuários (apenas admin com token especial)
+	// Conforme especificação: apenas requisições com token admin podem criar/editar/excluir usuários
+	users := api.Group("/users")
+	users.Use(middleware.AdminTokenMiddleware()) // Token de admin definido no .env (ADMIN_TOKEN)
 
-	// Apply global middleware
-	app.Use(routeMiddleware.ApplySecurityHeaders())
-	app.Use(routeMiddleware.ApplyValidationMiddleware())
-
-	// Health check (with public rate limiting)
-	app.Get("/health", routeMiddleware.ApplyPublicRateLimit(), healthCheck)
-
-	// API routes
-	api := app.Group("/api/v1")
-
-	// Setup auth routes (public)
-	setupAuthRoutes(api, config, routeMiddleware)
-
-	// Setup protected routes
-	setupProtectedRoutes(api, config, routeMiddleware)
+	users.Post("/", handler.CreateUser)      // POST /api/users - Criar usuário
+	users.Get("/", handler.GetUsers)         // GET /api/users - Listar usuários
+	users.Get("/:id", handler.GetUser)       // GET /api/users/:id - Obter usuário
+	users.Patch("/:id", handler.UpdateUser)  // PATCH /api/users/:id - Editar usuário
+	users.Delete("/:id", handler.DeleteUser) // DELETE /api/users/:id - Remover usuário
 }
 
-// healthCheck handles the health check endpoint
-func healthCheck(c *fiber.Ctx) error {
-	return c.JSON(models.APIResponse{
-		Success: true,
-		Message: "ZoomXML Service is healthy",
-		Data: map[string]interface{}{
-			"status":    "ok",
-			"version":   "1.0.0",
-			"timestamp": time.Now(),
-			"services": map[string]string{
-				"database":  "connected",
-				"storage":   "connected",
-				"api":       "running",
-				"scheduler": "running",
-			},
-		},
-	})
+// setupCompanyRoutes configura as rotas de gerenciamento de empresas
+func setupCompanyRoutes(api fiber.Router, handler *handlers.CompanyHandler) {
+	companies := api.Group("/companies")
+
+	// Aplicar autenticação opcional para todas as rotas de empresas
+	// Isso permite que usuários não autenticados vejam empresas públicas
+	companies.Use(middleware.OptionalAuthMiddleware())
+
+	// CRUD de empresas
+	companies.Post("/", middleware.AuthMiddleware(), handler.CreateCompany)                                        // Criar requer autenticação
+	companies.Get("/", handler.GetCompanies)                                                                       // Listar (com regras de visibilidade)
+	companies.Get("/:id", handler.GetCompany)                                                                      // Obter (com regras de visibilidade)
+	companies.Patch("/:id", middleware.AuthMiddleware(), handler.UpdateCompany)                                    // Atualizar requer autenticação
+	companies.Delete("/:id", middleware.AuthMiddleware(), middleware.AdminOnlyMiddleware(), handler.DeleteCompany) // Deletar apenas admin
+
+	// Rotas para gerenciar membros de empresas restritas
+	setupCompanyMemberRoutes(companies)
+
+	// Rotas para gerenciar credenciais de empresas
+	setupCompanyCredentialRoutes(companies)
 }
 
-// setupAuthRoutes configures authentication routes (public)
-func setupAuthRoutes(api fiber.Router, config RouteConfig, routeMiddleware *RouteMiddleware) {
-	auth := api.Group("/auth")
+// setupCompanyMemberRoutes configura as rotas de membros de empresas
+func setupCompanyMemberRoutes(companies fiber.Router) {
+	// Rotas para gerenciar membros (apenas para empresas restritas)
+	members := companies.Group("/:companyId/members")
+	members.Use(middleware.AuthMiddleware()) // Requer autenticação
 
-	// Apply public rate limiting to auth routes
-	auth.Use(routeMiddleware.ApplyPublicRateLimit())
-
-	// Public auth endpoints
-	auth.Post("/login", config.Handlers.Auth.Login)
-	auth.Post("/logout", config.Handlers.Auth.Logout)
-	auth.Post("/refresh", config.Handlers.Auth.RefreshToken)
+	// TODO: Implementar handlers de membros
+	// members.Post("/", memberHandler.AddMember)       // Adicionar membro
+	// members.Get("/", memberHandler.GetMembers)       // Listar membros
+	// members.Delete("/:userId", memberHandler.RemoveMember) // Remover membro
 }
 
-// setupProtectedRoutes configures protected routes
-func setupProtectedRoutes(api fiber.Router, config RouteConfig, routeMiddleware *RouteMiddleware) {
-	// Apply authentication middleware
-	protected := api.Use(middleware.AuthMiddleware(config.AuthService))
+// setupCompanyCredentialRoutes configura as rotas de credenciais de empresas
+func setupCompanyCredentialRoutes(companies fiber.Router) {
+	// Rotas para gerenciar credenciais
+	credentials := companies.Group("/:companyId/credentials")
+	credentials.Use(middleware.AuthMiddleware()) // Requer autenticação
 
-	// Apply authenticated rate limiting
-	protected.Use(routeMiddleware.ApplyAuthenticatedRateLimit())
-
-	// Setup auth protected routes
-	setupAuthProtectedRoutes(protected, config, routeMiddleware)
-
-	// Setup empresa routes
-	setupEmpresaRoutes(protected, config, routeMiddleware)
-
-	// Setup NFS-e routes
-	setupNFSeRoutes(protected, config, routeMiddleware)
+	// Implementar handlers de credenciais
+	credentials.Post("/", handler.CreateCredential)      // Criar credencial
+	credentials.Get("/", handler.GetCredentials)         // Listar credenciais
+	credentials.Patch("/:id", handler.UpdateCredential)  // Atualizar credencial
+	credentials.Delete("/:id", handler.DeleteCredential) // Deletar credencial
 }
 
-// setupAuthProtectedRoutes configures protected auth routes
-func setupAuthProtectedRoutes(protected fiber.Router, config RouteConfig, routeMiddleware *RouteMiddleware) {
-	protected.Get("/auth/me", config.Handlers.Auth.Me)
-}
+// setupAuthRoutes configura as rotas de autenticação
+func setupAuthRoutes(api fiber.Router) {
+	_ = api.Group("/auth")
 
-// setupEmpresaRoutes configures empresa management routes
-func setupEmpresaRoutes(protected fiber.Router, config RouteConfig, routeMiddleware *RouteMiddleware) {
-	empresas := protected.Group("/empresas")
-
-	empresas.Post("/", config.Handlers.Empresa.Create)
-	empresas.Get("/", config.Handlers.Empresa.List)
-	empresas.Get("/:id", config.Handlers.Empresa.GetByID)
-	empresas.Put("/:id", config.Handlers.Empresa.Update)
-	empresas.Delete("/:id", config.Handlers.Empresa.Delete)
-}
-
-// setupNFSeRoutes configures NFS-e related routes
-func setupNFSeRoutes(protected fiber.Router, config RouteConfig, routeMiddleware *RouteMiddleware) {
-	nfse := protected.Group("/nfse")
-
-	// Job management routes
-	setupJobRoutes(nfse, config, routeMiddleware)
-
-	// XML consumption routes
-	setupXMLRoutes(nfse, config, routeMiddleware)
-
-	// Statistics routes
-	setupStatsRoutes(nfse, config, routeMiddleware)
-}
-
-// setupJobRoutes configures job management routes
-func setupJobRoutes(nfse fiber.Router, config RouteConfig, routeMiddleware *RouteMiddleware) {
-	// Manual sync trigger (heavy operation)
-	nfse.Post("/sync", routeMiddleware.ApplyHeavyOperationsRateLimit(), config.Handlers.NFSe.HandleManualSync)
-
-	// Job listing and monitoring
-	nfse.Get("/jobs", config.Handlers.NFSe.HandleListJobs)
-
-	// Advanced job routes
-	jobs := nfse.Group("/jobs")
-	jobs.Get("/:id", config.Handlers.Job.HandleGetJob)
-	jobs.Delete("/:id", config.Handlers.Job.HandleCancelJob)
-	jobs.Post("/:id/retry", config.Handlers.Job.HandleRetryJob)
-	jobs.Get("/status/:status", config.Handlers.Job.HandleListJobsByStatus)
-}
-
-// setupXMLRoutes configures XML consumption routes
-func setupXMLRoutes(nfse fiber.Router, config RouteConfig, routeMiddleware *RouteMiddleware) {
-	// XML listing routes
-	nfse.Get("/xmls", config.Handlers.NFSe.HandleListStoredXMLs)
-	nfse.Get("/xmls/:competencia", config.Handlers.NFSe.HandleListXMLsByCompetencia)
-
-	// XML retrieval routes
-	nfse.Get("/xml/:competencia/:numero", config.Handlers.NFSe.HandleGetStoredXML)
-
-	// XML download routes (with download rate limiting)
-	nfse.Get("/xml/:competencia/:numero/download",
-		routeMiddleware.ApplyDownloadRateLimit(),
-		config.Handlers.NFSe.HandleDownloadXML)
-}
-
-// setupStatsRoutes configures statistics routes
-func setupStatsRoutes(nfse fiber.Router, config RouteConfig, routeMiddleware *RouteMiddleware) {
-	// General stats
-	nfse.Get("/stats", config.Handlers.Stats.HandleGetGeneralStats)
-
-	// Advanced stats routes
-	stats := nfse.Group("/stats")
-	stats.Get("/competencia/:competencia", config.Handlers.Stats.HandleGetStatsByCompetencia)
-	stats.Get("/summary", config.Handlers.Stats.HandleGetSummaryStats)
-	stats.Get("/performance", config.Handlers.Stats.HandleGetPerformanceMetrics)
-	stats.Get("/health", config.Handlers.Stats.HandleGetHealthMetrics)
+	// TODO: Implementar rotas de autenticação
+	// auth.Post("/login", authHandler.Login)       // Login de usuários
+	// auth.Post("/logout", authHandler.Logout)     // Logout
+	// auth.Post("/refresh", authHandler.Refresh)   // Refresh token
+	// auth.Get("/me", middleware.AuthMiddleware(), authHandler.GetProfile) // Perfil do usuário logado
 }

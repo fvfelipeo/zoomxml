@@ -1,320 +1,236 @@
-# 🚀 ZoomXML - Sistema Multi-Empresa de NFS-e
+# ZoomXML - Sistema de Gerenciamento Multi-Empresarial
 
-Sistema completo multi-empresa para consulta, organização e gerenciamento de NFS-e com API REST, processamento automático, detecção inteligente de duplicatas e armazenamento em MinIO S3 + PostgreSQL.
+Sistema de gerenciamento de documentos fiscais (NFS-e) com suporte a múltiplas empresas, autenticação baseada em papéis e armazenamento seguro.
 
-## 📁 Estrutura do Projeto
+## 🚀 Características
+
+- **Autenticação e Autorização**: JWT + Token de Admin para operações sensíveis
+- **Multi-tenancy**: Suporte a múltiplas empresas com controle de acesso
+- **Empresas Restritas**: Sistema de membros para empresas privadas
+- **Credenciais Seguras**: Armazenamento criptografado de credenciais externas
+- **Auditoria**: Log completo de todas as operações
+- **Storage**: Integração com MinIO/S3 para armazenamento de documentos
+- **Banco de Dados**: PostgreSQL com migrações automáticas usando Bun ORM
+
+## 🏗️ Arquitetura
 
 ```
-zoomxml/
-├── cmd/zoomxml/main.go         # 🚀 Serviço principal unificado
-├── main.go                     # Aplicação CLI (legacy)
-├── go.mod                      # Dependências do Go
-├── go.sum                      # Lock file das dependências
-├── docker-compose.yml          # PostgreSQL + MinIO + Adminer
-├── init.sql                    # Schema multi-empresa
-├── .env.example                # Configurações de exemplo
-├── internal/                   # Código interno da aplicação
-│   ├── api/                    # API REST
-│   │   ├── handlers/           # Handlers HTTP
-│   │   │   ├── auth.go         # Autenticação
-│   │   │   └── empresa.go      # Gestão de empresas
-│   │   └── middleware/         # Middlewares
-│   │       └── auth.go         # Middleware JWT
-│   ├── database/               # Camada de banco de dados
-│   │   ├── postgres.go         # Cliente PostgreSQL original
-│   │   ├── empresa_repository.go # CRUD empresas
-│   │   ├── auth_repository.go  # Gestão tokens
-│   │   └── job_repository.go   # Filas de jobs
-│   ├── storage/                # Camada de armazenamento
-│   │   ├── interface.go        # Interface de storage
-│   │   └── minio.go           # Cliente MinIO S3
-│   ├── models/                 # Modelos de dados
-│   │   ├── nfse.go            # Estruturas NFS-e
-│   │   └── empresa.go         # Modelos multi-empresa
-│   ├── services/               # Lógica de negócio
-│   │   ├── organizer.go       # Organizador inteligente
-│   │   └── auth.go            # Serviço de autenticação
-│   └── utils/                  # Utilitários
-│       └── helpers.go         # Funções auxiliares
-├── scripts/                    # Scripts de setup
-│   ├── setup.sh               # Setup infraestrutura
-│   └── start-service.sh       # Iniciar serviço completo
-└── docs/                       # Documentação
+internal/
+├── api/                 # Camada HTTP/API
+│   ├── handlers/        # Handlers das rotas
+│   ├── middleware/      # Middlewares de autenticação
+│   └── routes/          # Configuração de rotas
+├── auth/                # Lógica de autenticação (JWT, passwords)
+├── database/            # Conexão, migrações e seeders
+├── models/              # Modelos do banco de dados (Bun ORM)
+└── storage/             # Serviços de armazenamento (MinIO)
 ```
 
-## 🎯 Funcionalidades
+## 🛠️ Desenvolvimento Local
 
-### 📥 **Consulta de NFS-e**
-- ✅ **Consulta de XML por período** - Endpoint `/xmlnfse`
-- ✅ **XML compactado em Base64/ZIP** - Formato otimizado
-- ✅ **Paginação automática** - Até 100 registros por página
-- ✅ **Validação de parâmetros** - Datas e formatos
-- ✅ **Decodificação automática** - Base64 para arquivo ZIP
+### Pré-requisitos
 
-### 🧠 **Organização Inteligente**
-- ✅ **Detecção de duplicatas** - Por hash de conteúdo e número de NFS-e
-- ✅ **Versionamento automático** - Controle de versões para atualizações
-- ✅ **Organização hierárquica** - Por competência e CNPJ
-- ✅ **Conversão de encoding** - ISO-8859-1 → UTF-8 automática
-- ✅ **Processamento em lote** - Com relatórios detalhados
+- Go 1.23+
+- Docker e Docker Compose
 
-### 🗄️ **Gerenciamento de Metadados**
-- ✅ **PostgreSQL** - Banco de dados robusto para metadados
-- ✅ **Histórico de processamento** - Logs detalhados de operações
-- ✅ **Cache de prestadores** - Informações otimizadas
-- ✅ **Estatísticas em tempo real** - Dashboard de dados
-- ✅ **Integridade de arquivos** - Verificação de checksums
+### Configuração
 
-## 🚀 Início Rápido
-
-### 1. **Pré-requisitos**
+1. **Clone o repositório**
 ```bash
-# Go 1.21+
-go version
-
-# Docker & Docker Compose
-docker --version
-docker-compose --version
-```
-
-### 2. **Inicializar Sistema Completo**
-```bash
-# Clonar e entrar no diretório
-git clone <repo>
+git clone <repo-url>
 cd zoomxml
+```
 
-# Copiar configurações
+2. **Configure as variáveis de ambiente**
+```bash
 cp .env.example .env
-
-# Inicializar e executar serviço completo
-./scripts/start-service.sh
+# Edite o .env conforme necessário
 ```
 
-### 3. **Usar o Sistema**
-
-#### **Serviço Principal (Recomendado)**
+3. **Inicie os serviços de desenvolvimento**
 ```bash
-# Inicia API + Scheduler + Processamento automático
-go run cmd/zoomxml/main.go
+docker-compose -f docker-compose.dev.yml up -d
 ```
 
-#### **Comandos CLI (Legacy)**
+Isso iniciará:
+- **PostgreSQL** (porta 5432)
+- **MinIO** (porta 9000 - API, 9001 - Console)
+- **DBGate** (porta 8080 - Interface de banco)
+- **Redis** (porta 6379 - Cache)
+
+4. **Execute a aplicação**
 ```bash
-go run . fetch      # Buscar NFS-e da API
-go run . organize   # Organizar XMLs existentes
-go run . help       # Ver ajuda
+go run ./cmd/zoomxml
 ```
 
-## 🌐 API REST
+A aplicação estará disponível em `http://localhost:8000`
 
-### **Endpoints Disponíveis**
+### Serviços Disponíveis
 
-#### **Health Check**
-```bash
-GET /health
+- **Aplicação**: http://localhost:8000
+- **Health Check**: http://localhost:8000/health
+- **Swagger/OpenAPI**: http://localhost:8000/swagger/
+- **DBGate (DB Admin)**: http://localhost:8080
+- **MinIO Console**: http://localhost:9001 (admin/password123)
+
+## 📚 API Endpoints
+
+### 📖 Documentação da API
+
+A documentação completa da API está disponível via **Swagger/OpenAPI** em:
+**http://localhost:8000/swagger/**
+
+### Usuários (Admin Token Required)
+
+```http
+POST   /api/users              # Criar usuário
+GET    /api/users              # Listar usuários
+GET    /api/users/:id          # Obter usuário
+PATCH  /api/users/:id          # Editar usuário
+DELETE /api/users/:id          # Remover usuário
 ```
 
-#### **Autenticação**
-```bash
-POST /api/v1/auth/login     # Login
-POST /api/v1/auth/logout    # Logout
-POST /api/v1/auth/refresh   # Refresh token
-GET  /api/v1/auth/me        # Info do usuário
+**Header necessário**: `Authorization: Bearer <ADMIN_TOKEN>`
+
+### Empresas
+
+```http
+POST   /api/companies          # Criar empresa (autenticação necessária)
+GET    /api/companies          # Listar empresas (regras de visibilidade)
+GET    /api/companies/:id      # Obter empresa (regras de visibilidade)
+PATCH  /api/companies/:id      # Atualizar empresa (autenticação necessária)
+DELETE /api/companies/:id      # Deletar empresa (apenas admin)
 ```
 
-#### **Empresas**
-```bash
-GET    /api/v1/empresas     # Listar empresas
-POST   /api/v1/empresas     # Criar empresa
-GET    /api/v1/empresas/:id # Obter empresa
-PUT    /api/v1/empresas/:id # Atualizar empresa
-DELETE /api/v1/empresas/:id # Deletar empresa
-```
+## 🔐 Sistema de Autenticação
 
-#### **NFS-e (Protegido)**
-```bash
-POST /api/v1/nfse/sync      # Sincronização manual
-GET  /api/v1/nfse/jobs      # Listar jobs
-GET  /api/v1/nfse/stats     # Estatísticas
-```
+### 1. Token de Admin
+- Definido na variável `ADMIN_TOKEN` do `.env`
+- Necessário para todas as operações de usuários
+- Usado no header: `Authorization: Bearer <ADMIN_TOKEN>`
 
-### **Exemplos de Uso**
+### 2. JWT de Usuários
+- Gerado após login de usuários
+- Usado para operações normais da aplicação
+- Contém informações do usuário (ID, email, role)
 
-#### **1. Criar Empresa**
-```bash
-curl -X POST http://localhost:8080/api/v1/empresas \
-  -H "Content-Type: application/json" \
-  -d '{
-    "cnpj": "12345678000195",
-    "razao_social": "Empresa Teste LTDA",
-    "municipio": "imperatriz-ma",
-    "security_key": "test123",
-    "sync_interval_hours": 24,
-    "auto_sync_enabled": true
-  }'
-```
+### 3. Papéis de Usuário
+- **admin**: Acesso total ao sistema
+- **user**: Acesso limitado conforme regras de negócio
 
-#### **2. Fazer Login**
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "cnpj": "12345678000195",
-    "password": "test123"
-  }'
-```
+## 🏢 Sistema de Empresas
 
-#### **3. Usar Token (exemplo)**
-```bash
-# Salvar token da resposta do login
-TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+### Visibilidade
+- **Empresas Públicas**: Visíveis para todos os usuários
+- **Empresas Restritas**: Apenas membros e admins podem acessar
+- **Admins**: Sempre veem todas as empresas
 
-# Usar em requisições protegidas
-curl -X GET http://localhost:8080/api/v1/auth/me \
-  -H "Authorization: Bearer $TOKEN"
-```
+### Membros
+- Empresas restritas podem ter membros específicos
+- Tabela `company_members` gerencia os vínculos
+- Apenas usuários vinculados podem acessar empresas restritas
+
+## 🗄️ Banco de Dados
+
+### Modelos Principais
+
+- **users**: Usuários do sistema
+- **companies**: Empresas cadastradas
+- **company_members**: Vínculos usuário ↔ empresa (empresas restritas)
+- **company_credentials**: Credenciais externas das empresas
+- **documents**: Documentos fiscais
+- **audit_logs**: Logs de auditoria
+
+### Migrações
+- Migrações automáticas usando Bun ORM
+- Executadas na inicialização da aplicação
+- Seeders automáticos em desenvolvimento
+
+## 📦 Dados Iniciais (Desenvolvimento)
+
+O sistema cria automaticamente:
+- **Admin padrão**: admin@zoomxml.com / admin123
+- **Empresa exemplo**: Empresa Exemplo LTDA
 
 ## 🔧 Configuração
 
-### **API NFS-e**
-- **Município**: `imperatriz-ma`
-- **URL**: `https://api-nfse-imperatriz-ma.prefeituramoderna.com.br/ws/services`
-- **Security Key**: Configurado no código
+Principais variáveis do `.env`:
 
-### **PostgreSQL**
-- **Host**: `localhost:5432`
-- **Database**: `nfse_metadata`
-- **User**: `postgres`
-- **Password**: `password`
+```env
+# Aplicação
+APP_ENV=development
+PORT=3000
 
-### **Adminer (Interface Web)**
-- **URL**: `http://localhost:8080`
-- **Sistema**: PostgreSQL
-- **Servidor**: postgres
-- **Usuário**: postgres
-- **Senha**: password
-- **Base de dados**: nfse_metadata
+# Banco de Dados
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=nfse_metadata
 
-## 📊 Estrutura de Dados
+# Autenticação
+JWT_SECRET=your-secret-key
+ADMIN_TOKEN=admin-secret-token
 
-### **Organização de Arquivos**
-```
-xml/
-├── 2025-08/                    # Competência (YYYY-MM)
-│   └── 34194865000158/         # CNPJ do Prestador
-│       ├── nfse_250000057_20250808.xml
-│       ├── nfse_250000058_20250808.xml
-│       ├── resumo.txt          # Resumo do prestador
-│       └── ...
-└── processing_report_batch_xxx.txt  # Relatórios de processamento
+# Storage
+MINIO_ENDPOINT=localhost:9000
+MINIO_BUCKET=nfse-storage
 ```
 
-### **Banco de Dados**
-- **`nfse_metadata`** - Metadados completos das NFS-e
-- **`processing_logs`** - Histórico de processamento
-- **`prestador_cache`** - Cache de prestadores
-- **`competencia_index`** - Índice por competência
-- **`file_integrity`** - Integridade de arquivos
+## 📖 Documentação Swagger
 
-## 🔄 Fluxo de Trabalho
+A API possui documentação automática gerada via Swagger/OpenAPI.
 
-1. **Buscar NFS-e**: `go run . fetch`
-   - Consulta API da Prefeitura Moderna
-   - Salva XMLs como arquivos ZIP
-   - Decodifica Base64 automaticamente
+### Acessar Documentação
+- **URL**: http://localhost:8000/swagger/
+- **Formato JSON**: http://localhost:8000/swagger/doc.json
 
-2. **Organizar XMLs**: `go run . organize`
-   - Detecta duplicatas por hash SHA256
-   - Organiza por competência e CNPJ
-   - Armazena metadados no PostgreSQL
-   - Gera relatórios detalhados
-
-3. **Verificar Resultados**:
-   - Arquivos organizados em `xml/`
-   - Metadados em PostgreSQL
-   - Relatórios de processamento
-   - Interface web no Adminer
-
-## 🛠️ Desenvolvimento
-
-### **Compilar**
+### Regenerar Documentação
 ```bash
-go build .
+# Instalar swag (se não estiver instalado)
+go install github.com/swaggo/swag/cmd/swag@latest
+
+# Gerar documentação
+swag init -g cmd/zoomxml/main.go -o docs
 ```
 
-### **Executar Testes**
+## 🧪 Testes
+
 ```bash
+# Executar testes
 go test ./...
+
+# Executar com coverage
+go test -cover ./...
 ```
 
-### **Limpar Dados**
-```bash
-# Remover XMLs organizados
-rm -rf xml/
+## 📝 Logs e Monitoramento
 
-# Resetar banco de dados
-docker-compose down -v
+- **Health Check**: `/health`
+- **Logs estruturados**: JSON em produção
+- **Auditoria**: Todas as operações são logadas
+- **Métricas**: Prontas para integração com Prometheus
+
+## 🚀 Deploy
+
+### Docker Compose (Produção)
+```bash
 docker-compose up -d
 ```
 
-## 📈 Monitoramento
+### Variáveis Importantes para Produção
+- Alterar `JWT_SECRET`
+- Alterar `ADMIN_TOKEN`
+- Configurar `APP_ENV=production`
+- Configurar SSL para MinIO
+- Configurar backup do PostgreSQL
 
-### **Logs de Processamento**
-- Logs detalhados no console
-- Histórico no banco de dados
-- Relatórios em `xml/processing_report_*.txt`
+## 🤝 Contribuição
 
-### **Estatísticas**
-- Total de NFS-e processadas
-- Duplicatas detectadas
-- Performance de processamento
-- Integridade de arquivos
+1. Fork o projeto
+2. Crie uma branch para sua feature
+3. Commit suas mudanças
+4. Push para a branch
+5. Abra um Pull Request
 
-### **Interface Web**
-- Adminer: `http://localhost:8080`
-- Visualização de dados
-- Consultas SQL personalizadas
-- Exportação de relatórios
+## 📄 Licença
 
-## 🚨 Solução de Problemas
-
-### **PostgreSQL não conecta**
-```bash
-# Verificar se está rodando
-docker-compose ps
-
-# Ver logs
-docker-compose logs postgres
-
-# Reiniciar
-docker-compose restart postgres
-```
-
-### **Erro de permissão**
-```bash
-# Dar permissão ao script
-chmod +x scripts/setup.sh
-```
-
-### **Arquivos ZIP não encontrados**
-```bash
-# Primeiro execute fetch para baixar
-go run . fetch
-
-# Depois organize
-go run . organize
-```
-
-## 📞 Suporte
-
-- **Documentação**: Pasta `docs/`
-- **Logs**: Console e banco de dados
-- **Issues**: GitHub Issues
-- **API**: Documentação da Prefeitura Moderna
-
-## 🎯 Próximos Passos
-
-1. Executar `go run . fetch` para buscar NFS-e
-2. Executar `go run . organize` para organizar
-3. Acessar `http://localhost:8080` para ver metadados
-4. Verificar relatórios em `xml/processing_report_*.txt`
+Este projeto está sob a licença MIT. Veja o arquivo LICENSE para detalhes.
