@@ -12,13 +12,14 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	App       AppConfig
-	Database  DatabaseConfig
-	Storage   StorageConfig
-	Auth      AuthConfig
-	Server    ServerConfig
-	Logger    LoggerConfig
-	RateLimit RateLimitConfig
+	App           AppConfig
+	Database      DatabaseConfig
+	Storage       StorageConfig
+	Auth          AuthConfig
+	Server        ServerConfig
+	Logger        LoggerConfig
+	RateLimit     RateLimitConfig
+	NFSeScheduler NFSeSchedulerConfig
 }
 
 // AppConfig holds application-specific configuration
@@ -96,6 +97,15 @@ type RateLimitConfig struct {
 	DownloadRPM        int
 }
 
+// NFSeSchedulerConfig holds NFSe scheduler configuration
+type NFSeSchedulerConfig struct {
+	Enabled         bool
+	Interval        string
+	FetchDaysBack   int
+	MaxPagesPerRun  int
+	APIDelaySeconds int
+}
+
 var appConfig *Config
 
 // Load loads configuration from environment variables
@@ -166,6 +176,13 @@ func Load() *Config {
 			AuthenticatedRPM:   getEnvInt("AUTHENTICATED_RPM", 1000),
 			HeavyOperationsRPM: getEnvInt("HEAVY_OPERATIONS_RPM", 10),
 			DownloadRPM:        getEnvInt("DOWNLOAD_RPM", 50),
+		},
+		NFSeScheduler: NFSeSchedulerConfig{
+			Enabled:         getEnvBool("NFSE_SCHEDULER_ENABLED", true),
+			Interval:        getEnv("NFSE_SCHEDULER_INTERVAL", "24h"),
+			FetchDaysBack:   getEnvInt("NFSE_FETCH_DAYS_BACK", 90),
+			MaxPagesPerRun:  getEnvInt("NFSE_MAX_PAGES_PER_RUN", 10),
+			APIDelaySeconds: getEnvInt("NFSE_API_DELAY_SECONDS", 2),
 		},
 	}
 

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,12 +11,14 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/swagger"
 	"github.com/zoomxml/config"
+	"github.com/zoomxml/internal/api/middleware"
 	"github.com/zoomxml/internal/api/routes"
 	"github.com/zoomxml/internal/database"
+	"github.com/zoomxml/internal/logger"
+	"github.com/zoomxml/internal/services"
 	"github.com/zoomxml/internal/storage"
 
 	_ "github.com/zoomxml/docs" // Swagger docs
@@ -51,31 +52,41 @@ import (
 func main() {
 	// Carregar configuração
 	cfg := config.Load()
-	log.Printf("Starting %s v%s in %s mode", cfg.App.Name, cfg.App.Version, cfg.App.Env)
+
+	// Inicializar logger
+	logger.Initialize()
+	logger.Printf("Starting %s v%s in %s mode", cfg.App.Name, cfg.App.Version, cfg.App.Env)
 
 	// Conectar ao banco de dados
 	if err := database.Connect(); err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		logger.Fatal("Failed to connect to database:", err)
 	}
 	defer database.Close()
 
 	// Executar migrações automáticas
 	ctx := context.Background()
 	if err := database.AutoMigrate(ctx); err != nil {
-		log.Fatal("Failed to run migrations:", err)
+		logger.Fatal("Failed to run migrations:", err)
+	}
+
+	// Executar seeders (criar usuário admin automaticamente)
+	if err := database.RunSeeders(ctx); err != nil {
+		logger.Fatal("Failed to run seeders:", err)
 	}
 
 	// Inicializar storage (MinIO)
 	if err := storage.InitializeStorage(); err != nil {
-		log.Fatal("Failed to initialize storage:", err)
+		logger.Fatal("Failed to initialize storage:", err)
 	}
 
-	// Seeder removido - usuários devem ser criados via API
-	// Para criar o primeiro usuário admin, use:
-	// curl -X POST http://localhost:8000/api/users \
-	//   -H "token: admin-secret-token" \
-	//   -H "Content-Type: application/json" \
-	//   -d '{"name":"Admin","email":"admin@zoomxml.com","password":"admin123","role":"admin"}'
+	// Inicializar e iniciar o scheduler NFSe
+	nfseScheduler := services.NewNFSeScheduler()
+	if err := nfseScheduler.Start(); err != nil {
+		logger.Fatal("Failed to start NFSe scheduler:", err)
+	}
+
+	// Graceful shutdown do scheduler
+	defer nfseScheduler.Stop()
 
 	// Criar aplicação Fiber
 	app := fiber.New(fiber.Config{
@@ -98,19 +109,19 @@ func main() {
 
 	go func() {
 		<-c
-		log.Println("Gracefully shutting down...")
+		logger.Println("Gracefully shutting down...")
 		_ = app.Shutdown()
 	}()
 
 	// Iniciar servidor
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	log.Printf("Server starting on %s", addr)
+	logger.Printf("Server starting on %s", addr)
 
 	if err := app.Listen(addr); err != nil {
-		log.Fatal("Failed to start server:", err)
+		logger.Fatal("Failed to start server:", err)
 	}
 
-	log.Println("Server stopped")
+	logger.Println("Server stopped")
 }
 
 // setupMiddleware configura os middlewares globais
@@ -118,12 +129,13 @@ func setupMiddleware(app *fiber.App, cfg *config.Config) {
 	// Recover middleware
 	app.Use(recover.New())
 
-	// Logger middleware
-	if cfg.IsDevelopment() {
-		app.Use(logger.New(logger.Config{
-			Format: "[${time}] ${status} - ${method} ${path} - ${latency}\n",
-		}))
-	}
+	// Logger middleware - usando nosso logger customizado
+	app.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+		Skip: middleware.CombinedSkipper(
+			middleware.HealthCheckSkipper,
+			middleware.StaticFileSkipper,
+		),
+	}))
 
 	// CORS middleware
 	if cfg.Server.EnableCORS {

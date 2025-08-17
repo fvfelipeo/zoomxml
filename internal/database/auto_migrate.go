@@ -2,14 +2,14 @@ package database
 
 import (
 	"context"
-	"log"
+	"github.com/zoomxml/internal/logger"
 
 	"github.com/zoomxml/internal/models"
 )
 
 // AutoMigrate executa migração automática usando os modelos do Bun
 func AutoMigrate(ctx context.Context) error {
-	log.Println("Starting auto-migration...")
+	logger.Println("Starting auto-migration...")
 
 	// Registrar modelos
 	models.RegisterModels(DB)
@@ -22,13 +22,13 @@ func AutoMigrate(ctx context.Context) error {
 		}
 	}
 
-	log.Println("Auto-migration completed successfully")
+	logger.Println("Auto-migration completed successfully")
 	return nil
 }
 
 // DropAllTables remove todas as tabelas (usar apenas em desenvolvimento/testes)
 func DropAllTables(ctx context.Context) error {
-	log.Println("Dropping all tables...")
+	logger.Println("Dropping all tables...")
 
 	allModels := models.GetAllModels()
 	// Reverter ordem para evitar problemas de foreign key
@@ -39,7 +39,7 @@ func DropAllTables(ctx context.Context) error {
 		}
 	}
 
-	log.Println("All tables dropped successfully")
+	logger.Println("All tables dropped successfully")
 	return nil
 }
 

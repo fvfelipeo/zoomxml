@@ -4,8 +4,10 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/zoomxml/internal/api/middleware"
 	"github.com/zoomxml/internal/database"
 	"github.com/zoomxml/internal/models"
+	"github.com/zoomxml/internal/permissions"
 )
 
 // CredentialHandler gerencia as operações de credenciais
@@ -18,22 +20,24 @@ func NewCredentialHandler() *CredentialHandler {
 
 // CreateCredentialRequest representa a requisição para criar credencial
 type CreateCredentialRequest struct {
-	Type           string `json:"type" validate:"required,oneof=prefeitura_user_pass prefeitura_token"`
-	Name           string `json:"name" validate:"required,min=2,max=255"`
-	Login          string `json:"login,omitempty"`          // Para user/pass
-	Password       string `json:"password,omitempty"`       // Para user/pass
-	Token          string `json:"token,omitempty"`          // Para token
-	EncryptedSecret string `json:"encrypted_secret,omitempty"` // Campo genérico para dados criptografados
+	Type        string `json:"type" validate:"required,oneof=prefeitura_user_pass prefeitura_token prefeitura_mixed"`
+	Name        string `json:"name" validate:"required,min=2,max=255"`
+	Description string `json:"description,omitempty"`                                                           // Descrição opcional da credencial
+	Login       string `json:"login,omitempty"`                                                                 // Para user/pass e mixed
+	Password    string `json:"password,omitempty"`                                                              // Para user/pass e mixed
+	Token       string `json:"token,omitempty"`                                                                 // Para token e mixed
+	Environment string `json:"environment,omitempty" validate:"omitempty,oneof=production staging development"` // Ambiente
 }
 
 // UpdateCredentialRequest representa a requisição para atualizar credencial
 type UpdateCredentialRequest struct {
-	Name           *string `json:"name,omitempty" validate:"omitempty,min=2,max=255"`
-	Login          *string `json:"login,omitempty"`
-	Password       *string `json:"password,omitempty"`
-	Token          *string `json:"token,omitempty"`
-	EncryptedSecret *string `json:"encrypted_secret,omitempty"`
-	Active         *bool   `json:"active,omitempty"`
+	Name        *string `json:"name,omitempty" validate:"omitempty,min=2,max=255"`
+	Description *string `json:"description,omitempty"`
+	Login       *string `json:"login,omitempty"`
+	Password    *string `json:"password,omitempty"`
+	Token       *string `json:"token,omitempty"`
+	Environment *string `json:"environment,omitempty" validate:"omitempty,oneof=production staging development"`
+	Active      *bool   `json:"active,omitempty"`
 }
 
 // CreateCredential cria uma nova credencial para uma empresa
@@ -62,20 +66,31 @@ func (h *CredentialHandler) CreateCredential(c *fiber.Ctx) error {
 		})
 	}
 
-	// Verificar se a empresa existe e se o usuário tem acesso
-	company := &models.Company{}
-	err = database.DB.NewSelect().
-		Model(company).
-		Where("id = ? AND active = true", companyID).
-		Scan(c.Context())
-
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Company not found",
+	// Obter usuário do contexto
+	user := middleware.GetUserFromContext(c)
+	if user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
 		})
 	}
 
-	// TODO: Verificar permissões do usuário para esta empresa
+	// Verificar permissões do usuário para esta empresa
+	err = permissions.CanCreateCredentials(c.Context(), user, companyID)
+	if err != nil {
+		if err == permissions.ErrCompanyNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Company not found",
+			})
+		}
+		if err == permissions.ErrAccessDenied {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Access denied to this company",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to validate permissions",
+		})
+	}
 
 	// Parse do request
 	var req CreateCredentialRequest
@@ -89,39 +104,27 @@ func (h *CredentialHandler) CreateCredential(c *fiber.Ctx) error {
 	if err := validate.Struct(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error":   "Validation failed",
-			"details": getValidationErrors(err),
+			"details": validateStruct(req),
 		})
-	}
-
-	// Preparar dados para criptografia
-	var encryptedSecret string
-	switch req.Type {
-	case "prefeitura_user_pass":
-		if req.Login == "" || req.Password == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Login and password are required for user/pass type",
-			})
-		}
-		// TODO: Criptografar login:password
-		encryptedSecret = req.Login + ":" + req.Password
-	case "prefeitura_token":
-		if req.Token == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error": "Token is required for token type",
-			})
-		}
-		// TODO: Criptografar token
-		encryptedSecret = req.Token
 	}
 
 	// Criar credencial
 	credential := &models.CompanyCredential{
-		CompanyID:       companyID,
-		Type:            req.Type,
-		Name:            req.Name,
-		Login:           req.Login,
-		EncryptedSecret: encryptedSecret,
-		Active:          true,
+		CompanyID:   companyID,
+		Type:        req.Type,
+		Name:        req.Name,
+		Description: req.Description,
+		Login:       req.Login,
+		Environment: req.Environment,
+		Active:      true,
+	}
+
+	// Criptografar dados da credencial
+	err = credential.SetCredentialData(req.Login, req.Password, req.Token)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to encrypt credential data",
+		})
 	}
 
 	_, err = database.DB.NewInsert().Model(credential).Exec(c.Context())
@@ -157,20 +160,31 @@ func (h *CredentialHandler) GetCredentials(c *fiber.Ctx) error {
 		})
 	}
 
-	// Verificar se a empresa existe e se o usuário tem acesso
-	company := &models.Company{}
-	err = database.DB.NewSelect().
-		Model(company).
-		Where("id = ? AND active = true", companyID).
-		Scan(c.Context())
-
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"error": "Company not found",
+	// Obter usuário do contexto
+	user := middleware.GetUserFromContext(c)
+	if user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
 		})
 	}
 
-	// TODO: Verificar permissões do usuário para esta empresa
+	// Verificar permissões do usuário para esta empresa
+	err = permissions.CanViewCredentials(c.Context(), user, companyID)
+	if err != nil {
+		if err == permissions.ErrCompanyNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Company not found",
+			})
+		}
+		if err == permissions.ErrAccessDenied {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Access denied to this company",
+			})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to validate permissions",
+		})
+	}
 
 	// Buscar credenciais
 	var credentials []models.CompanyCredential
@@ -210,18 +224,44 @@ func (h *CredentialHandler) UpdateCredential(c *fiber.Ctx) error {
 	// Obter IDs
 	companyIDStr := c.Params("company_id")
 	credentialIDStr := c.Params("credential_id")
-	
+
 	companyID, err := strconv.ParseInt(companyIDStr, 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid company ID",
 		})
 	}
-	
+
 	credentialID, err := strconv.ParseInt(credentialIDStr, 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid credential ID",
+		})
+	}
+
+	// Obter usuário do contexto
+	user := middleware.GetUserFromContext(c)
+	if user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
+		})
+	}
+
+	// Verificar permissões do usuário para esta credencial
+	err = permissions.ValidateCredentialAccess(c.Context(), user, credentialID, companyID)
+	if err != nil {
+		if err == permissions.ErrCompanyNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Company not found",
+			})
+		}
+		if err == permissions.ErrAccessDenied {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Access denied to this company",
+			})
+		}
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "Credential not found",
 		})
 	}
 
@@ -250,7 +290,7 @@ func (h *CredentialHandler) UpdateCredential(c *fiber.Ctx) error {
 	if err := validate.Struct(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error":   "Validation failed",
-			"details": getValidationErrors(err),
+			"details": validateStruct(req),
 		})
 	}
 
@@ -262,14 +302,55 @@ func (h *CredentialHandler) UpdateCredential(c *fiber.Ctx) error {
 		credential.Name = *req.Name
 	}
 
+	if req.Description != nil {
+		query = query.Set("description = ?", *req.Description)
+		credential.Description = *req.Description
+	}
+
 	if req.Login != nil {
 		query = query.Set("login = ?", *req.Login)
 		credential.Login = *req.Login
 	}
 
-	if req.EncryptedSecret != nil {
-		query = query.Set("encrypted_secret = ?", *req.EncryptedSecret)
-		credential.EncryptedSecret = *req.EncryptedSecret
+	if req.Environment != nil {
+		query = query.Set("environment = ?", *req.Environment)
+		credential.Environment = *req.Environment
+	}
+
+	// Handle credential data updates
+	if req.Password != nil || req.Token != nil {
+		// Get current credential data
+		currentLogin, currentPassword, currentToken, err := credential.GetCredentialData()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to decrypt current credential data",
+			})
+		}
+
+		// Use new values if provided, otherwise keep current values
+		newLogin := currentLogin
+		newPassword := currentPassword
+		newToken := currentToken
+
+		if req.Login != nil {
+			newLogin = *req.Login
+		}
+		if req.Password != nil {
+			newPassword = *req.Password
+		}
+		if req.Token != nil {
+			newToken = *req.Token
+		}
+
+		// Re-encrypt with updated data
+		err = credential.SetCredentialData(newLogin, newPassword, newToken)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "Failed to encrypt updated credential data",
+			})
+		}
+
+		query = query.Set("encrypted_secret = ?", credential.EncryptedSecret)
 	}
 
 	if req.Active != nil {
@@ -307,14 +388,14 @@ func (h *CredentialHandler) DeleteCredential(c *fiber.Ctx) error {
 	// Obter IDs
 	companyIDStr := c.Params("company_id")
 	credentialIDStr := c.Params("credential_id")
-	
+
 	companyID, err := strconv.ParseInt(companyIDStr, 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Invalid company ID",
 		})
 	}
-	
+
 	credentialID, err := strconv.ParseInt(credentialIDStr, 10, 64)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -322,19 +403,27 @@ func (h *CredentialHandler) DeleteCredential(c *fiber.Ctx) error {
 		})
 	}
 
-	// Verificar se a credencial existe
-	exists, err := database.DB.NewSelect().
-		Model((*models.CompanyCredential)(nil)).
-		Where("id = ? AND company_id = ?", credentialID, companyID).
-		Exists(c.Context())
-
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Database error",
+	// Obter usuário do contexto
+	user := middleware.GetUserFromContext(c)
+	if user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Authentication required",
 		})
 	}
 
-	if !exists {
+	// Verificar permissões do usuário para esta credencial
+	err = permissions.ValidateCredentialAccess(c.Context(), user, credentialID, companyID)
+	if err != nil {
+		if err == permissions.ErrCompanyNotFound {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error": "Company not found",
+			})
+		}
+		if err == permissions.ErrAccessDenied {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Access denied to this company",
+			})
+		}
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "Credential not found",
 		})

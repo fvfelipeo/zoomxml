@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"github.com/zoomxml/internal/logger"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -57,7 +57,7 @@ func Connect() error {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	log.Println("Database connection established successfully")
+	logger.Println("Database connection established successfully")
 	return nil
 }
 

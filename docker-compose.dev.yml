@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database for Development
   postgres:
@@ -26,7 +24,7 @@ services:
 
   # MinIO S3 Storage for Development
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2024-01-13T07-53-03Z-cpuv1
     container_name: zoomxml-minio-dev
     restart: unless-stopped
     environment:

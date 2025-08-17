@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
-	"log"
+	"github.com/zoomxml/internal/logger"
 
 	"github.com/uptrace/bun"
 )
@@ -80,12 +80,12 @@ func RunMigrations(ctx context.Context) error {
 		}
 
 		if exists {
-			log.Printf("Migration %s already applied, skipping", migration.Name)
+			logger.Printf("Migration %s already applied, skipping", migration.Name)
 			continue
 		}
 
 		// Run migration
-		log.Printf("Running migration: %s", migration.Name)
+		logger.Printf("Running migration: %s", migration.Name)
 		if err := migration.Up(ctx, DB); err != nil {
 			return fmt.Errorf("failed to run migration %s: %w", migration.Name, err)
 		}
@@ -96,10 +96,10 @@ func RunMigrations(ctx context.Context) error {
 			return fmt.Errorf("failed to record migration %s: %w", migration.Name, err)
 		}
 
-		log.Printf("Migration %s completed successfully", migration.Name)
+		logger.Printf("Migration %s completed successfully", migration.Name)
 	}
 
-	log.Println("All migrations completed successfully")
+	logger.Println("All migrations completed successfully")
 	return nil
 }
 

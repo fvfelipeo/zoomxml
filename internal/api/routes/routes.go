@@ -63,6 +63,9 @@ func setupCompanyRoutes(api fiber.Router, handler *handlers.CompanyHandler) {
 
 	// Rotas para gerenciar credenciais de empresas
 	setupCompanyCredentialRoutes(companies)
+
+	// Rotas para NFSe
+	setupNFSeRoutes(companies)
 }
 
 // setupCompanyMemberRoutes configura as rotas de membros de empresas
@@ -77,17 +80,37 @@ func setupCompanyMemberRoutes(companies fiber.Router) {
 	// members.Delete("/:userId", memberHandler.RemoveMember) // Remover membro
 }
 
+// setupCredentialRoutes configura as rotas de credenciais
+func setupCredentialRoutes(api fiber.Router, handler *handlers.CredentialHandler) {
+	// As rotas de credenciais são configuradas dentro das rotas de empresas
+	// Esta função existe para manter a consistência com o padrão de setup
+	// As rotas reais são configuradas em setupCompanyCredentialRoutes
+}
+
 // setupCompanyCredentialRoutes configura as rotas de credenciais de empresas
 func setupCompanyCredentialRoutes(companies fiber.Router) {
 	// Rotas para gerenciar credenciais
-	credentials := companies.Group("/:companyId/credentials")
+	credentials := companies.Group("/:company_id/credentials")
 	credentials.Use(middleware.AuthMiddleware()) // Requer autenticação
 
 	// Implementar handlers de credenciais
-	credentials.Post("/", handler.CreateCredential)      // Criar credencial
-	credentials.Get("/", handler.GetCredentials)         // Listar credenciais
-	credentials.Patch("/:id", handler.UpdateCredential)  // Atualizar credencial
-	credentials.Delete("/:id", handler.DeleteCredential) // Deletar credencial
+	credentialHandler := handlers.NewCredentialHandler()
+	credentials.Post("/", credentialHandler.CreateCredential)      // Criar credencial
+	credentials.Get("/", credentialHandler.GetCredentials)         // Listar credenciais
+	credentials.Patch("/:id", credentialHandler.UpdateCredential)  // Atualizar credencial
+	credentials.Delete("/:id", credentialHandler.DeleteCredential) // Deletar credencial
+}
+
+// setupNFSeRoutes configura as rotas de NFSe
+func setupNFSeRoutes(companies fiber.Router) {
+	// Rotas para NFSe
+	nfse := companies.Group("/:company_id/nfse")
+	nfse.Use(middleware.AuthMiddleware()) // Requer autenticação
+
+	// Implementar handlers de NFSe
+	nfseHandler := handlers.NewNFSeHandler()
+	nfse.Post("/fetch", nfseHandler.FetchNFSeDocuments) // Buscar documentos NFSe
+	nfse.Get("/", nfseHandler.GetNFSeDocuments)         // Listar documentos NFSe armazenados
 }
 
 // setupAuthRoutes configura as rotas de autenticação
