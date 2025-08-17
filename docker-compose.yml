@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: nfse_postgres
+    environment:
+      POSTGRES_DB: nfse_metadata
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - nfse_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nfse_metadata"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2024-01-13T07-53-03Z-cpuv1
+    container_name: nfse_minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # Console
+    volumes:
+      - minio_data:/data
+    networks:
+      - nfse_network
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=password123
+      - MINIO_BROWSER_REDIRECT_URL=http://localhost:9001
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ZoomXML Application
+  zoomxml:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zoomxml-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # Application
+      APP_NAME: ZoomXML
+      APP_VERSION: 1.0.0
+      APP_ENV: production
+      APP_DEBUG: false
+
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DB_NAME: nfse_metadata
+      DB_SSLMODE: disable
+
+      # Storage
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: password123
+      MINIO_BUCKET: nfse-storage
+      MINIO_USE_SSL: false
+
+      # Authentication
+      JWT_SECRET: production-secret-key-change-this-in-real-production-123456789
+
+      # Server
+      SERVER_HOST: 0.0.0.0
+      PORT: 3000
+
+      # Scheduler
+      ENABLE_AUTO_SYNC: true
+      DEFAULT_SYNC_INTERVAL: 1h
+      JOB_PROCESSOR_INTERVAL: 30s
+
+      # Logging
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+
+      # Rate Limiting
+      ENABLE_RATE_LIMIT: true
+      AUTHENTICATED_RPM: 1000
+      HEAVY_OPERATIONS_RPM: 10
+    ports:
+      - "3000:3000"
+    networks:
+      - nfse_network
+    volumes:
+      - app_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # MinIO Client (for bucket creation)
+  minio-client:
+    image: minio/mc:latest
+    container_name: zoomxml-minio-client
+    depends_on:
+      - minio
+    networks:
+      - nfse_network
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      /usr/bin/mc alias set myminio http://minio:9000 admin password123;
+      /usr/bin/mc mb myminio/nfse-storage --ignore-existing;
+      /usr/bin/mc policy set public myminio/nfse-storage;
+      echo 'MinIO bucket created successfully';
+      exit 0;
+      "
+
+  adminer:
+    image: adminer:latest
+    container_name: nfse_adminer
+    ports:
+      - "8080:8080"
+    networks:
+      - nfse_network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  nfse_network:
+    driver: bridge

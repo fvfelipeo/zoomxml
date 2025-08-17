@@ -1,0 +1,117 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database for Development
+  postgres:
+    image: postgres:15-alpine
+    container_name: zoomxml-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nfse_metadata
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - zoomxml-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nfse_metadata"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO S3 Storage for Development
+  minio:
+    image: minio/minio:latest
+    container_name: zoomxml-minio-dev
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    volumes:
+      - minio_dev_data:/data
+    ports:
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # Web Console
+    networks:
+      - zoomxml-dev
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MinIO Client for automatic bucket setup
+  minio-setup:
+    image: minio/mc:latest
+    container_name: zoomxml-minio-setup
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - zoomxml-dev
+    entrypoint: >
+      /bin/sh -c "
+      echo '🔧 Setting up MinIO bucket...';
+      sleep 5;
+      /usr/bin/mc alias set myminio http://minio:9000 admin password123;
+      /usr/bin/mc mb myminio/nfse-storage --ignore-existing;
+      /usr/bin/mc policy set public myminio/nfse-storage;
+      echo '✅ MinIO bucket nfse-storage created successfully';
+      echo '🌐 MinIO Console: http://localhost:9001';
+      echo '📦 S3 API: http://localhost:9000';
+      echo '🔑 Access Key: admin';
+      echo '🔐 Secret Key: password123';
+      exit 0;
+      "
+
+  # Adminer for database management
+  adminer:
+    image: adminer:latest
+    container_name: zoomxml-adminer-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    networks:
+      - zoomxml-dev
+    depends_on:
+      - postgres
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: zoomxml-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - zoomxml-dev
+    volumes:
+      - redis_dev_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  minio_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+
+networks:
+  zoomxml-dev:
+    driver: bridge
+    name: zoomxml-dev-network
