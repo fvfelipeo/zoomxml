@@ -12,6 +12,7 @@ func SetupRoutes(app *fiber.App) {
 	userHandler := handlers.NewUserHandler()
 	companyHandler := handlers.NewCompanyHandler()
 	credentialHandler := handlers.NewCredentialHandler()
+	cnpjHandler := handlers.NewCNPJHandler()
 
 	// Grupo API
 	api := app.Group("/api")
@@ -24,6 +25,9 @@ func SetupRoutes(app *fiber.App) {
 
 	// Configurar rotas de credenciais
 	setupCredentialRoutes(api, credentialHandler)
+
+	// Configurar rotas de CNPJ
+	setupCNPJRoutes(api, cnpjHandler)
 
 	// Configurar rotas de autenticação
 	setupAuthRoutes(api)
@@ -111,6 +115,12 @@ func setupNFSeRoutes(companies fiber.Router) {
 	nfseHandler := handlers.NewNFSeHandler()
 	nfse.Post("/fetch", nfseHandler.FetchNFSeDocuments) // Buscar documentos NFSe
 	nfse.Get("/", nfseHandler.GetNFSeDocuments)         // Listar documentos NFSe armazenados
+}
+
+// setupCNPJRoutes configura as rotas de consulta de CNPJ
+func setupCNPJRoutes(api fiber.Router, handler *handlers.CNPJHandler) {
+	// Rota para consultar CNPJ (requer autenticação)
+	api.Get("/cnpj/:cnpj", middleware.AuthMiddleware(), handler.ConsultarCNPJ)
 }
 
 // setupAuthRoutes configura as rotas de autenticação

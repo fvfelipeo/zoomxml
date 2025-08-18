@@ -157,7 +157,7 @@ func Load() *Config {
 			IdleTimeout:    getEnvDuration("SERVER_IDLE_TIMEOUT", 120*time.Second),
 			EnableCORS:     getEnvBool("ENABLE_CORS", true),
 			AllowedOrigins: getEnvSlice("ALLOWED_ORIGINS", []string{"*"}),
-			AllowedMethods: getEnvSlice("ALLOWED_METHODS", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}),
+			AllowedMethods: getEnvSlice("ALLOWED_METHODS", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}),
 			AllowedHeaders: getEnvSlice("ALLOWED_HEADERS", []string{"*"}),
 		},
 		Logger: LoggerConfig{
