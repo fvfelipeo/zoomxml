@@ -31,6 +31,9 @@ func SetupRoutes(app *fiber.App) {
 
 	// Configurar rotas de autenticação
 	setupAuthRoutes(api)
+
+	// Configurar rotas de estatísticas
+	setupStatsRoutes(api)
 }
 
 // setupUserRoutes configura as rotas de gerenciamento de usuários
@@ -125,11 +128,22 @@ func setupCNPJRoutes(api fiber.Router, handler *handlers.CNPJHandler) {
 
 // setupAuthRoutes configura as rotas de autenticação
 func setupAuthRoutes(api fiber.Router) {
-	_ = api.Group("/auth")
+	auth := api.Group("/auth")
+	authHandler := handlers.NewAuthHandler()
 
-	// TODO: Implementar rotas de autenticação
-	// auth.Post("/login", authHandler.Login)       // Login de usuários
-	// auth.Post("/logout", authHandler.Logout)     // Logout
-	// auth.Post("/refresh", authHandler.Refresh)   // Refresh token
-	// auth.Get("/me", middleware.AuthMiddleware(), authHandler.GetProfile) // Perfil do usuário logado
+	// Rotas de autenticação
+	auth.Post("/login", authHandler.Login)                                // Login de usuários
+	auth.Post("/logout", middleware.AuthMiddleware(), authHandler.Logout) // Logout (requer autenticação)
+	auth.Get("/me", middleware.AuthMiddleware(), authHandler.GetProfile)  // Perfil do usuário logado
+}
+
+// setupStatsRoutes configura as rotas de estatísticas
+func setupStatsRoutes(api fiber.Router) {
+	stats := api.Group("/stats")
+	statsHandler := handlers.NewStatsHandler()
+
+	// Rotas de estatísticas (requer autenticação)
+	stats.Use(middleware.AuthMiddleware())
+	stats.Get("/dashboard", statsHandler.GetDashboardStats)   // Estatísticas do dashboard
+	stats.Get("/companies/:id", statsHandler.GetCompanyStats) // Estatísticas de empresa específica
 }

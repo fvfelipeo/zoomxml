@@ -170,9 +170,10 @@ func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
 	}
 
 	if active := c.Query("active"); active != "" {
-		if active == "true" {
+		switch active {
+		case "true":
 			query = query.Where("active = true")
-		} else if active == "false" {
+		case "false":
 			query = query.Where("active = false")
 		}
 	}

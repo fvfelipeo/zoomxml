@@ -214,17 +214,19 @@ func (h *CompanyHandler) GetCompanies(c *fiber.Ctx) error {
 
 	// Filtros opcionais
 	if active := c.Query("active"); active != "" && user != nil && user.IsAdmin() {
-		if active == "true" {
+		switch active {
+		case "true":
 			query = query.Where("active = true")
-		} else if active == "false" {
+		case "false":
 			query = query.Where("active = false")
 		}
 	}
 
 	if restricted := c.Query("restricted"); restricted != "" && user != nil && user.IsAdmin() {
-		if restricted == "true" {
+		switch restricted {
+		case "true":
 			query = query.Where("restricted = true")
-		} else if restricted == "false" {
+		case "false":
 			query = query.Where("restricted = false")
 		}
 	}
